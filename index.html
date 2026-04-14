@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CFG Visualizer — Parse Tree Generator</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="noise-overlay"></div>
+
+  <header class="header glass-header">
+    <div class="logo">
+      <span class="logo-bracket">&lt;</span>CFG<span class="logo-bracket">/&gt;</span>
+      <span class="logo-sub">Derivation & Parse Tree Generator</span>
+    </div>
+    <div class="header-controls">
+      <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
+    </div>
+    <nav class="header-nav">
+      <span class="tag">Theory of Automata and Formal Languages</span>
+    </nav>
+  </header>
+
+  <main class="main">
+    <!-- LEFT PANEL: Input -->
+    <section class="panel panel--input">
+      <h2 class="panel-title"><span class="step-num">01</span> Define Grammar</h2>
+
+      <div class="form-group">
+        <label class="label">Grammar Rules <span class="hint">(one rule per line, e.g. S → aS | b)</span></label>
+        <textarea id="grammar-input" class="editor" rows="8" spellcheck="false" title="Enter production rules, one per line. Use → for arrows and | for alternatives. Example: S → a S b | ε">S → SS | a</textarea>
+        <div class="symbol-buttons">
+          <button class="symbol-btn" data-symbol="→" title="Insert arrow (→)">→</button>
+          <button class="symbol-btn" data-symbol="ε" title="Insert epsilon (ε)">ε</button>
+        </div>
+        <div id="grammar-status" class="validation-status"></div>
+      </div>
+
+      <div class="preset-scroll-panel">
+        <div class="presets-wrapper">
+          <div class="presets">
+            <div class="presets-section">
+              <span class="presets-label">Basic Examples:</span>
+              <button class="preset-btn" data-preset="arithmetic" title="Arithmetic expressions (ambiguous)">Arithmetic</button>
+              <button class="preset-btn" data-preset="palindrome" title="Palindromes">Palindrome</button>
+              <button class="preset-btn" data-preset="anbn" title="Equal a's followed by b's">aⁿbⁿ</button>
+              <button class="preset-btn" data-preset="balanced" title="Balanced parentheses">Balanced Parens</button>
+            </div>
+
+            <div class="presets-section">
+              <span class="presets-label">LL(1) Grammars:</span>
+              <button class="preset-btn" data-preset="simple_expr" title="Simple expressions (LL(1))">Expressions</button>
+              <button class="preset-btn" data-preset="if_statement" title="If-then-else statements">If-Statements</button>
+            </div>
+
+            <div class="presets-section">
+              <span class="presets-label">Ambiguous Examples:</span>
+              <button class="preset-btn" data-preset="dangling_else" title="Dangling else problem">Dangling Else</button>
+              <button class="preset-btn" data-preset="assoc_expr" title="Associativity ambiguity">Associativity</button>
+            </div>
+
+            <div class="presets-section">
+              <span class="presets-label">Language Theory:</span>
+              <button class="preset-btn" data-preset="even_length" title="Even length palindromes">Even Palindromes</button>
+              <button class="preset-btn" data-preset="binary_palindrome" title="Binary palindromes">Binary Palindromes</button>
+              <button class="preset-btn" data-preset="ab_star" title="a* (Kleene star)">a*</button>
+              <button class="preset-btn" data-preset="alternating" title="Alternating a and b">Alternating</button>
+            </div>
+
+            <div class="presets-section">
+              <span class="presets-label">Custom Presets:</span>
+              <button id="save-preset-btn" class="preset-btn save-btn" title="Save current grammar as custom preset">💾 Save Custom</button>
+              <div id="custom-presets" class="custom-presets-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h2 class="panel-title"><span class="step-num">02</span> Input String</h2>
+      <div class="form-group">
+        <label class="label">String to Parse</label>
+        <input type="text" id="string-input" class="input-field" value="aaaa" placeholder="Enter a string..." title="Enter the string you want to parse with your grammar" />
+        <div id="string-status" class="validation-status" style="display: none;"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="label">Start Symbol</label>
+        <input type="text" id="start-symbol" class="input-field" value="S" placeholder="S" maxlength="5" title="The initial non-terminal symbol (usually S)" />
+      </div>
+
+      <div class="form-group">
+        <label class="label">Derivation Strategy</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="strategy" value="leftmost" checked title="Expand leftmost non-terminal first" /> Leftmost
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="strategy" value="rightmost" title="Expand rightmost non-terminal first" /> Rightmost
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="label">Grammar Ambiguity</label>
+        <label class="radio-label">
+          <input type="checkbox" id="ambiguity-check" checked title="Check if the grammar can parse strings in multiple ways" /> Check grammar ambiguity
+        </label>
+        <span class="hint">This is a heuristic check and may be inconclusive for complex grammars.</span>
+      </div>
+
+      <div id="main-ambiguity-status" class="ambiguity-status">Generate a parse tree to see whether the string is ambiguous.</div>
+
+      <button id="parse-btn" class="btn-primary">
+        <span class="btn-icon">▶</span> Generate Parse Tree
+      </button>
+      <button id="clear-btn" class="btn-secondary">Clear</button>
+
+      <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>Parsing grammar...</p>
+      </div>
+
+      <div id="error-box" class="error-box hidden"></div>
+    </section>
+
+    <!-- RIGHT PANEL: Output -->
+    <section class="panel panel--output">
+      <div class="output-tabs">
+        <button class="tab active" data-tab="tree">Parse Tree</button>
+        <button class="tab" data-tab="derivation">Derivation Steps</button>
+        <button class="tab" data-tab="grammar-info">Grammar Info</button>
+        <button class="tab" data-tab="theory">Theory</button> <!-- ✅ ADD THIS LINE -->        <button class="tab" data-tab="tutorial">Tutorial</button>      </div>
+
+      <div id="tab-tree" class="tab-content active">
+        <div class="tree-controls">
+          <button class="ctrl-btn" id="step-prev" title="Previous Step">◀</button>
+          <button class="ctrl-btn" id="step-toggle" title="Pause animation">❚❚</button>
+          <button class="ctrl-btn" id="step-next" title="Next Step">▶</button>
+          <span class="step-label" id="step-label">Step: 0</span>
+          <button class="ctrl-btn" id="tree-prev" title="Previous Parse">⟨</button>
+          <button class="ctrl-btn" id="tree-next" title="Next Parse">⟩</button>
+          <span class="tree-label" id="tree-label">Parse 0/0</span>
+          <div class="spacer"></div>
+          <button class="ctrl-btn" id="zoom-in" title="Zoom In">＋</button>
+          <button class="ctrl-btn" id="zoom-out" title="Zoom Out">－</button>
+          <button class="ctrl-btn" id="zoom-reset" title="Reset Zoom">⊙</button>
+          <span class="zoom-label" id="zoom-label">100%</span>
+          <div class="spacer"></div>
+          <button class="ctrl-btn" id="export-png" title="Export as PNG">📷</button>
+          <button class="ctrl-btn" id="share-link" title="Share Link">🔗</button>
+        </div>
+        <div class="canvas-wrapper" id="canvas-wrapper">
+          <canvas id="tree-canvas"></canvas>
+          <div class="placeholder" id="tree-placeholder">
+            <div class="placeholder-icon">🌳</div>
+            <p>Define grammar rules and click<br/><strong>Generate Parse Tree</strong></p>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-derivation" class="tab-content">
+        <div id="derivation-steps" class="steps-container">
+          <div class="placeholder">
+            <div class="placeholder-icon">📜</div>
+            <p>Derivation steps will appear here</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-grammar-info" class="tab-content">
+        <div id="grammar-info-content" class="grammar-info">
+          <div class="placeholder">
+            <div class="placeholder-icon">ℹ️</div>
+            <p>Grammar analysis will appear here</p>
+          </div>
+        </div>
+      </div>
+      <div id="tab-theory" class="tab-content">
+        <div class="theory-wrapper">
+
+          <!-- Sub Tabs -->
+          <div class="theory-tabs">
+            <button class="theory-tab active" data-theory="cfg">CFG</button>
+            <button class="theory-tab" data-theory="parse">Parse Tree</button>
+            <button class="theory-tab" data-theory="derivation">Derivation</button>
+            <button class="theory-tab" data-theory="examples">Examples</button>
+          </div>
+
+          <!-- CFG -->
+          <div class="theory-content active" id="theory-cfg">
+            <p>
+              A Context-Free Grammar (CFG) is a formal system used in computer science to describe the structure of languages.
+              It is widely used in compiler design, programming languages, and syntax analysis. A CFG consists of a set of
+              production rules that define how strings can be generated from a start symbol. These rules are called
+              "context-free" because they can be applied regardless of the surrounding symbols.
+            </p>
+
+            <p>
+              A CFG is defined by four components: a set of non-terminals, a set of terminals, a set of production rules,
+              and a start symbol. Non-terminals are variables like S, A, and B that can be expanded further, while terminals
+              are the actual symbols of the language such as a, b, or id. Production rules describe how non-terminals can be
+              replaced with combinations of terminals and non-terminals.
+            </p>
+
+            <p>
+              CFGs are powerful enough to represent most programming language constructs such as expressions, loops, and
+              conditional statements. They are used in the design of parsers and compilers to check whether a program follows
+              the correct syntax. However, CFGs cannot represent all types of languages, especially those requiring context
+              sensitivity.
+            </p>
+
+            <p>
+              In practical applications, CFGs are used along with parsing techniques to analyze input strings and generate
+              parse trees. These trees help in understanding the hierarchical structure of the language and are essential
+              for further stages like semantic analysis and code generation.
+            </p>
+          </div>
+
+          <!-- Parse Tree -->
+          <div class="theory-content" id="theory-parse">
+            <p>
+              A parse tree is a graphical representation that shows how a string is derived from a context-free grammar.
+              It represents the hierarchical structure of the derivation process. The root of the tree is the start symbol,
+              and each internal node represents a non-terminal, while the leaf nodes represent terminals.
+            </p>
+
+            <p>
+              In a parse tree, each production rule is applied by expanding a non-terminal node into its children.
+              The children correspond to the symbols on the right-hand side of the production rule. By following the tree
+              from root to leaves, we can reconstruct the generated string.
+            </p>
+
+            <p>
+              Parse trees are important in compiler design because they help in syntax analysis. They allow the compiler
+              to verify whether a given string belongs to the language defined by the grammar. If a valid parse tree can
+              be constructed, the string is accepted; otherwise, it is rejected.
+            </p>
+
+            <p>
+              Parse trees also play a crucial role in further stages of compilation such as semantic analysis and code
+              generation. They help in understanding operator precedence, associativity, and the overall structure of
+              expressions in programming languages.
+            </p>
+          </div>
+
+          <!-- Derivation -->
+          <div class="theory-content" id="theory-derivation">
+            <ul>
+              <li>Derivation is the process of generating a string from the start symbol using production rules.</li>
+              <li>Each step replaces a non-terminal with the right-hand side of a production rule.</li>
+              <li>Leftmost derivation expands the leftmost non-terminal first at every step.</li>
+              <li>Rightmost derivation expands the rightmost non-terminal first.</li>
+              <li>Both derivations generate the same language but may have different intermediate steps.</li>
+              <li>Derivations are used to construct parse trees and verify string validity.</li>
+            </ul>
+          </div>
+
+          <!-- Examples -->
+          <div class="theory-content" id="theory-examples">
+            <pre>S → a S b | ε</pre>
+            <p>Example 1: ab</p>
+            <p>Example 2: aabb</p>
+            <p>Example 3: aaabbb</p>
+
+            <pre>S → ( S ) S | ε</pre>
+            <p>Example 4: ()</p>
+            <p>Example 5: (())</p>
+
+            <pre>S → a S a | b S b | ε</pre>
+            <p>Example 6: aba</p>
+            <p>Example 7: abba</p>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="tab-tutorial" class="tab-content">
+        <div class="tutorial-wrapper">
+          <div class="tutorial-header">
+            <h3>CFG Tutorial: Learn Context-Free Grammars Step by Step</h3>
+            <p class="tutorial-intro">This interactive tutorial will guide you through the fundamentals of Context-Free Grammars and how to use this visualizer.</p>
+          </div>
+
+          <div class="tutorial-steps">
+            <div class="tutorial-step active" data-step="1">
+              <div class="step-header">
+                <span class="step-number">1</span>
+                <h4>What is a Context-Free Grammar?</h4>
+              </div>
+              <div class="step-content">
+                <p>A Context-Free Grammar (CFG) is a set of rules that define how to generate strings in a language. It consists of:</p>
+                <ul>
+                  <li><strong>Non-terminals</strong>: Variables (usually uppercase letters like S, A, B)</li>
+                  <li><strong>Terminals</strong>: Actual symbols of the language (lowercase letters, numbers, etc.)</li>
+                  <li><strong>Production rules</strong>: Rules showing how non-terminals can be replaced</li>
+                  <li><strong>Start symbol</strong>: The initial non-terminal (usually S)</li>
+                </ul>
+                <div class="tutorial-example">
+                  <p><strong>Example:</strong> S → aSb | ε</p>
+                  <p>This grammar generates strings like: ε, ab, aabb, aaabbb, etc.</p>
+                </div>
+                <button class="tutorial-btn" data-action="next">Next: Try It Yourself →</button>
+              </div>
+            </div>
+
+            <div class="tutorial-step" data-step="2">
+              <div class="step-header">
+                <span class="step-number">2</span>
+                <h4>Writing Your First Grammar</h4>
+              </div>
+              <div class="step-content">
+                <p>Let's create a simple grammar that generates balanced parentheses.</p>
+                <div class="tutorial-instruction">
+                  <p>Click the button below to load a preset grammar:</p>
+                  <button class="tutorial-preset-btn" data-preset="balanced">Load Balanced Parentheses Grammar</button>
+                </div>
+                <div class="tutorial-explanation">
+                  <p><strong>The grammar:</strong> S → (S)S | ε</p>
+                  <p>This means:</p>
+                  <ul>
+                    <li>S can become (S)S (a pair of parentheses with another S inside)</li>
+                    <li>S can become ε (empty string)</li>
+                  </ul>
+                  <p>Try entering "()" or "(())" in the input string field and click "Generate Parse Tree".</p>
+                </div>
+                <div class="tutorial-navigation">
+                  <button class="tutorial-btn secondary" data-action="prev">← Previous</button>
+                  <button class="tutorial-btn" data-action="next">Next: Understanding Parse Trees →</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="tutorial-step" data-step="3">
+              <div class="step-header">
+                <span class="step-number">3</span>
+                <h4>Understanding Parse Trees</h4>
+              </div>
+              <div class="step-content">
+                <p>A parse tree shows how a string is derived from the grammar rules. Each node represents either a non-terminal or terminal symbol.</p>
+                <div class="tutorial-visual">
+                  <div class="parse-tree-mini">
+                    <div class="tree-node root">S</div>
+                    <div class="tree-children">
+                      <div class="tree-node">S</div>
+                      <div class="tree-node terminal">a</div>
+                      <div class="tree-node">S</div>
+                    </div>
+                  </div>
+                  <p><em>Example parse tree for "a" using S → aS | ε</em></p>
+                </div>
+                <p><strong>Reading a parse tree:</strong></p>
+                <ul>
+                  <li>Start at the root (usually S)</li>
+                  <li>Each internal node is a non-terminal</li>
+                  <li>Each leaf node is a terminal</li>
+                  <li>Following the leaves left-to-right gives you the string</li>
+                </ul>
+                <div class="tutorial-navigation">
+                  <button class="tutorial-btn secondary" data-action="prev">← Previous</button>
+                  <button class="tutorial-btn" data-action="next">Next: Derivation Strategies →</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="tutorial-step" data-step="4">
+              <div class="step-header">
+                <span class="step-number">4</span>
+                <h4>Leftmost vs Rightmost Derivation</h4>
+              </div>
+              <div class="step-content">
+                <p>When deriving a string, we need to choose which non-terminal to expand first. There are two common strategies:</p>
+                <div class="derivation-comparison">
+                  <div class="derivation-type">
+                    <h5>Leftmost Derivation</h5>
+                    <p>Always expand the leftmost non-terminal first.</p>
+                    <div class="derivation-example">
+                      <p>S → aSb</p>
+                      <p>aSb → aaSbb</p>
+                      <p>aaSbb → aabbb</p>
+                    </div>
+                  </div>
+                  <div class="derivation-type">
+                    <h5>Rightmost Derivation</h5>
+                    <p>Always expand the rightmost non-terminal first.</p>
+                    <div class="derivation-example">
+                      <p>S → aSb</p>
+                      <p>aSb → aSbb</p>
+                      <p>aSbb → aaSbbb</p>
+                      <p>aaSbbb → aaabbb</p>
+                    </div>
+                  </div>
+                </div>
+                <p>Both strategies can generate the same string but may produce different intermediate steps.</p>
+                <div class="tutorial-navigation">
+                  <button class="tutorial-btn secondary" data-action="prev">← Previous</button>
+                  <button class="tutorial-btn" data-action="next">Next: Grammar Ambiguity →</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="tutorial-step" data-step="5">
+              <div class="step-header">
+                <span class="step-number">5</span>
+                <h4>Grammar Ambiguity</h4>
+              </div>
+              <div class="step-content">
+                <p>A grammar is ambiguous if a string can be parsed in multiple different ways (has multiple parse trees).</p>
+                <div class="ambiguity-example">
+                  <p><strong>Ambiguous Grammar:</strong> E → E+E | E*E | a</p>
+                  <p>The expression "a+a*a" can be parsed as:</p>
+                  <ul>
+                    <li>(a+a)*a</li>
+                    <li>a+(a*a)</li>
+                  </ul>
+                  <p>These have different meanings in arithmetic!</p>
+                </div>
+                <p>The visualizer can detect some forms of ambiguity. Try the "Associativity" or "Dangling Else" presets to see ambiguous grammars in action.</p>
+                <div class="tutorial-navigation">
+                  <button class="tutorial-btn secondary" data-action="prev">← Previous</button>
+                  <button class="tutorial-btn" data-action="next">Next: Advanced Features →</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="tutorial-step" data-step="6">
+              <div class="step-header">
+                <span class="step-number">6</span>
+                <h4>Advanced Features</h4>
+              </div>
+              <div class="step-content">
+                <p>Now that you understand the basics, explore these features:</p>
+                <div class="feature-list">
+                  <div class="feature-item">
+                    <h5>� Preset Library</h5>
+                    <p>Explore 15+ built-in presets including LL(1) grammars, ambiguous examples, and programming constructs.</p>
+                  </div>
+                  <div class="feature-item">
+                    <h5>💾 Custom Presets</h5>
+                    <p>Save your own grammars locally and build a personal collection of examples.</p>
+                  </div>
+                  <div class="feature-item">
+                    <h5>🎨 Themes</h5>
+                    <p>Switch between light and dark themes using the sun/moon button in the header.</p>
+                  </div>
+                  <div class="feature-item">
+                    <h5>🔍 Zoom & Pan</h5>
+                    <p>Use zoom controls and click-drag to navigate large parse trees.</p>
+                  </div>
+                  <div class="feature-item">
+                    <h5>⚡ Animation</h5>
+                    <p>Watch parse trees build step-by-step with the animation controls.</p>
+                  </div>
+                </div>
+                <div class="tutorial-conclusion">
+                  <p><strong>Congratulations!</strong> You've completed the CFG tutorial. You're now ready to explore context-free grammars on your own.</p>
+                  <p>Try creating your own grammars or explore the preset examples. Remember, practice is key to mastering formal languages!</p>
+                </div>
+                <div class="tutorial-navigation">
+                  <button class="tutorial-btn secondary" data-action="prev">← Previous</button>
+                  <button class="tutorial-btn" data-action="complete">Complete Tutorial ✓</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tutorial-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 16.67%"></div>
+            </div>
+            <div class="progress-text">Step 1 of 6</div>
+          </div>
+        </div>
+      </div>
+  </main>
+
+  <footer class="footer">
+    <p>CFG Derivation & Parse Tree Generator · Theory of Automata and Formal Languages · Built with HTML/CSS/JS</p>
+  </footer>
+
+  <script src="js/grammar.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/tree-renderer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
